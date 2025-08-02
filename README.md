@@ -1,5 +1,5 @@
 ##### **Working Board Version**
 
 
-esp32 by EspressifSystems v2.0.17
+ESP32 by Espressif Systems v2.0.17
 
