@@ -1,0 +1,285 @@
+const char INDEX_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>ESP32-CAM Car Control Interface</title>
+  <style>
+    /* Default button styles */
+    .control-button {
+      width: 330px;
+      height: 270px;
+      background: #ED1F59;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: bold;
+      color: white;
+      transition: background-color 0.2s;
+    }
+
+    .control-button:hover {
+      background: #C81A4B;
+      /* Darker red on hover */
+    }
+
+    .control-button:active {
+      background: #A0143D;
+      /* Even darker red when pressed */
+    }
+
+    /* Styles for vertical buttons */
+    .vertical-button {
+      width: 160px;
+      height: 600px;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    #gps,
+    #result {
+      font-size: 1.5em;
+      margin-top: 20px;
+    }
+  </style>
+
+</head>
+
+<body>
+  <div style="display: flex;justify-content: center; transform: rotate(90deg); margin-top: 400px;">
+    <div
+      style="display: flex;flex-direction: column;justify-content:space-evenly; width: 1600px; height: 900px; background: #D9D9D9; border-radius: 10px">
+
+      <div style="display: flex; height:50px;">
+        <button id="Flash_ON_OFF"
+          style="width: 100px; padding: 10px 0; background-color: #3728ff; border: none; color: white;font-weight: bold ; border-radius: 4px;"
+          onclick="Flash_ON_OFF_Func()">Flash OFF</button>
+      </div>
+
+      <div>
+        <div id="gps">Loading GPS Data...</div>
+        <input id="target" type="text" placeholder="Latitude,Longitude">
+        <button onclick="calculate()">Calculate</button>
+        <div id="result">Result will appear here</div>
+      </div>
+
+      <div
+        style="display: flex;justify-content:space-evenly; width: 1600px; height: 600px; background: #a7a7a7; border-radius: 10px">
+        <!-- Forward and Backward Buttons -->
+        <div id="Move_Forward_Backward" style="display: flex; flex-direction: column; gap: 60px">
+          <!-- Move Forward with Upward Triangle -->
+          <div id="Move_Forward"
+            style="width: 330px; height: 270px; background: #ED1F59; border-radius: 10px; position: relative;">
+            <button id="Move_Forward" class="control-button" ontouchstart="sendData('Pressed Foward')"
+              ontouchend="sendData('Unpressed Foward')">
+              <div
+                style="width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 30px solid white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+              </div>
+            </button>
+          </div>
+          <!-- Move Backward with Downward Triangle -->
+          <div id="Move_Backward"
+            style="width: 330px; height: 270px; background: #ED1F59; border-radius: 10px; position: relative;">
+            <button id="Move_Backward" class="control-button" ontouchstart="sendData('Pressed Backward')"
+              ontouchend="sendData('Unpressed Backward')">
+              <div
+                style="width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 30px solid white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+              </div>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Live Stream Video -->
+        <div id="ESP32CAM_Video"
+          style="width: 800px; height: 600px; background: rgba(47, 48, 54, 0.65); border-radius: 10px">
+          <img id="video" src="http://192.168.4.1:81/stream" style="width: 100%; height: 100%;"
+            alt="ESP32-CAM Video Stream">
+        </div>
+
+        <!-- Left and Right Buttons -->
+        <div id="Move_Left_Right" style="display: flex; justify-content: space-evenly; gap: 49px;">
+
+          <div id="Move_Left"
+            style="width: 160px; height: 600px; background: #ED1F59; border-radius: 10px; display: flex; justify-content: center; align-items: center; position: relative;">
+
+            <button id="Move_Left" class="control-button vertical-button" ontouchstart="sendData('Pressed Left')"
+              ontouchend="sendData('Unpressed Left')">
+              <div
+                style="width: 0; height: 0; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-right: 30px solid white; margin-left: 60px;">
+              </div>
+            </button>
+
+          </div>
+          <!-- Move Right with Rightward Triangle -->
+          <div id="Move_Right"
+            style="width: 160px; height: 600px; background: #ED1F59; border-radius: 10px; display: flex; justify-content: center; align-items: center; position: relative;">
+            <button id="Move_Right" class="control-button vertical-button" ontouchstart="sendData('Pressed Right')"
+              ontouchend="sendData('Unpressed Right')">
+              <div
+                style="width: 0; height: 0; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-left: 30px solid white; margin-left: 60px;">
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+
+    var gateway_ip = "http://192.168.4.1"
+
+    // Function to fetch data once
+    async function fetch_to_Move_Stop() {
+      try {
+        const response = await fetch(`${gateway_ip}/state?cmd=S`);
+        const data = await response.text(); // Or response.json() if it's JSON
+        console.log(data); // Do something with the data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Function to fetch data once
+    async function fetch_to_Move_Foward() {
+      try {
+        const response = await fetch(`${gateway_ip}/state?cmd=F`);
+        const data = await response.text(); // Or response.json() if it's JSON
+        console.log(data); // Do something with the data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Function to fetch data once
+    async function fetch_to_Move_Backward() {
+      try {
+        const response = await fetch(`${gateway_ip}/state?cmd=B`);
+        const data = await response.text(); // Or response.json() if it's JSON
+        console.log(data); // Do something with the data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Function to fetch data once
+    async function fetch_to_Move_Left() {
+      try {
+        const response = await fetch(`${gateway_ip}/state?cmd=L`);
+        const data = await response.text(); // Or response.json() if it's JSON
+        console.log(data); // Do something with the data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Function to fetch data once
+    async function fetch_to_Move_Right() {
+      try {
+        const response = await fetch(`${gateway_ip}/state?cmd=R`);
+        const data = await response.text(); // Or response.json() if it's JSON
+        console.log(data); // Do something with the data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Function to fetch data once
+    async function fetch_Flash_ON() {
+      try {
+        const response = await fetch(`${gateway_ip}/state?cmd=W`);
+        const data = await response.text(); // Or response.json() if it's JSON
+        console.log(data); // Do something with the data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Function to fetch data once
+    async function fetch_Flash_OFF() {
+      try {
+        const response = await fetch(`${gateway_ip}/state?cmd=w`);
+        const data = await response.text(); // Or response.json() if it's JSON
+        console.log(data); // Do something with the data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    function Flash_ON_OFF_Func() {
+      var button = document.getElementById('Flash_ON_OFF');
+      if (button.innerHTML === "Flash OFF") {
+        fetch_Flash_ON();
+        button.innerHTML = "Flash ON";
+      } else {
+        fetch_Flash_OFF();
+        button.innerHTML = "Flash OFF";
+      }
+    }
+
+    // Function to handle button press
+    function sendData(action) {
+      if (action === 'Pressed Foward') {
+        // Fetch once when button is pressed
+        fetch_to_Move_Foward();
+      }
+      else if (action === 'Pressed Backward') {
+        // Fetch once when button is pressed
+        fetch_to_Move_Backward();
+      }
+      else if (action === 'Pressed Left') {
+        // Fetch once when button is pressed
+        fetch_to_Move_Left();
+      }
+      else if (action === 'Pressed Right') {
+        // Fetch once when button is pressed
+        fetch_to_Move_Right();
+      }
+      else {
+        fetch_to_Move_Stop();
+      }
+    }
+
+    function ChangeVideoLink() {
+      const video = document.getElementById('video');
+      video.src = `${gateway_ip}:81/stream`;
+    }
+
+    async function calculate() {
+      const target = document.getElementById('target').value;
+      if (!target) {
+        document.getElementById('result').innerText = "Please enter a value.";
+        return;
+      }
+
+      try {
+        // Send value to ESP32
+        const response = await fetch(`${gateway_ip}/process?value=${encodeURIComponent(target)}`);
+
+
+        if (response.ok) {
+          const data = await response.text();
+          document.getElementById('result').innerText = data; // Display response from ESP32
+        } else {
+          document.getElementById('result').innerText = "Error processing data!";
+        }
+      } catch (error) {
+        document.getElementById('result').innerText = "Communication error!";
+      }
+    }
+
+  setInterval(calculate, 1000);
+  </script>
+</body>
+
+</html>
+)rawliteral";
